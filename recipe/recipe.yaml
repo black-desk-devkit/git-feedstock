@@ -1,0 +1,115 @@
+context:
+  version: "2.55.0"
+
+package:
+  name: git
+  version: ${{ version }}
+
+source:
+  # Git itself
+  - url: https://mirrors.edge.kernel.org/pub/software/scm/git/git-${{ version }}.tar.gz
+    sha256: 0842dc384a23ac33ba3e570c4f3a8ded85963ee4713b1cd21153c3db41813d1e
+    target_directory: code
+    patches:
+      - 0001-macOS-Do-not-use-the-system-Wish-urgh.patch
+
+  # Prebuilt documentation
+  - url: https://mirrors.edge.kernel.org/pub/software/scm/git/git-manpages-${{ version }}.tar.gz
+    sha256: e1d56c160c55be805d339613d6c5cdb1269d5346a50d757c39135f1449e28ed5
+    target_directory: manpages
+  - url: https://mirrors.edge.kernel.org/pub/software/scm/git/git-htmldocs-${{ version }}.tar.gz
+    sha256: 8cc302f07f4d246b556c4f4f57cdc0aa7f13a57f9b5c94629ff8ec26cddf66b5
+    target_directory: htmldocs
+
+build:
+  number: 0
+  skip: win
+  script: build.sh
+
+requirements:
+  build:
+    - ${{ compiler('c') }}
+    - ${{ compiler('rust') }}
+    - autoconf
+    - gettext-tools
+    - make
+    - tk
+  host:
+    - expat
+    - libcurl
+    - libiconv
+    - if: osx
+      then: libintl-devel
+    - openssl
+    - pcre2
+    - perl 5.*
+    - zlib
+  run:
+    - perl 5.*
+
+tests:
+  # Basic sanity checks
+  - script:
+      - git --version
+      - test -f "$PREFIX/bin/git"
+      - test -f "$PREFIX/bin/gitk"
+      - if: osx
+        then: "git-credential-osxkeychain 2>&1 | grep -q usage"
+      - bash "$PREFIX/share/bash-completion/completions/git"
+      - git clone https://github.com/conda-forge/git-feedstock
+      - test -f "$PREFIX/man/man1/git.1"
+      - test -f "$PREFIX/share/doc/git/index.html"
+
+  # Functional test for the contrib commands shipped in this package
+  # (`git subtree` and `git contacts`)
+  - script:
+      - test -f "$PREFIX/libexec/git-core/git-subtree"
+      - test -f "$PREFIX/libexec/git-core/git-contacts"
+      - git init -q -b master sub
+      - cd sub
+      - git config user.name "Sub Tree"
+      - git config user.email sub@example.com
+      - echo sub > sub.txt
+      - git add sub.txt
+      - git commit -q -m "Add sub.txt"
+      - cd ..
+      - git init -q -b master smoke
+      - cd smoke
+      - git config user.name "Smoke Test"
+      - git config user.email smoke@example.com
+      - echo one > file.txt
+      - git add file.txt
+      - git commit -q -m "Commit one"
+      - echo two > file.txt
+      - git commit -q -a -m "Commit two"
+      - git contacts HEAD~1 | grep -F smoke@example.com
+      - git subtree add --prefix=sub ../sub master
+      - test -f sub/sub.txt
+
+  - package_contents:
+      bin:
+        - git
+        - gitk
+      files:
+        - libexec/git-core/git-subtree
+        - libexec/git-core/git-contacts
+        - share/bash-completion/completions/git
+        - share/doc/git/index.html
+
+about:
+  homepage: https://git-scm.com/
+  repository: https://github.com/git/git
+  license: GPL-2.0-or-later AND LGPL-2.1-or-later
+  license_file:
+    - code/COPYING
+    - code/LGPL-2.1
+  summary: Distributed version control system
+  description: |
+    Git is a free and open source distributed version control system designed
+    to handle everything from small to very large projects with speed and
+    efficiency. This package also ships the `git subtree` and `git contacts`
+    contrib commands.
+
+extra:
+  recipe-maintainers:
+    - black-desk

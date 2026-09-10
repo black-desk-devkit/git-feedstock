@@ -4,7 +4,7 @@ set -x
 
 # NO_INSTALL_HARDLINKS uses symlinks which makes the package 85MB slimmer (8MB instead of 93MB!)
 
-if [[ "$CONDA_BUILD_CROSS_COMPILATION" == 1 && "$target_platform" == "osx-arm64" ]]; then
+if [[ "${CONDA_BUILD_CROSS_COMPILATION:-0}" == 1 && "$target_platform" == "osx-arm64" ]]; then
   export ac_cv_iconv_omits_bom=no
   export ac_cv_fread_reads_directories=yes
   export ac_cv_snprintf_returns_bogus=no
@@ -48,7 +48,7 @@ make configure
 make \
     --jobs="$CPU_COUNT" \
     NO_INSTALL_HARDLINKS=1 \
-    STRIP=$STRIP \
+    STRIP="${STRIP:-strip}" \
     "${RUST_MAKE_ARGS[@]}" \
     "${CSPRNG_MAKE_ARGS[@]}" \
     all strip install
@@ -87,6 +87,18 @@ pushd contrib/subtree
 make
 make install
 popd # subtree
+
+# Install git-contacts, another contrib command that is not installed by the
+# toplevel "make install".
+pushd contrib/contacts
+make
+make install
+popd # contacts
+# The contrib Makefile installs the script verbatim with its upstream
+# `#!/usr/bin/perl` shebang. Rewrite it to use the same interpreter as the rest
+# of git's Perl scripts (configured via --with-perl above).
+sed -i.bak "1s|^#!.*perl.*\$|#!$PREFIX/bin/perl|" "$PREFIX/libexec/git-core/git-contacts"
+rm -f "$PREFIX/libexec/git-core/git-contacts.bak"
 
 popd # code
 
